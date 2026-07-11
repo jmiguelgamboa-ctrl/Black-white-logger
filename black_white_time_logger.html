@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Black / White Time Logger</title>
+  <style>
+    :root {
+      font-family: Arial, Helvetica, sans-serif;
+      color-scheme: light;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #f2f2f2;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .app {
+      width: min(92vw, 520px);
+      margin: 32px auto;
+      background: white;
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+    }
+
+    h1 {
+      margin-top: 0;
+      text-align: center;
+      font-size: 1.6rem;
+    }
+
+    #logButton {
+      width: 100%;
+      min-height: 110px;
+      border: none;
+      border-radius: 16px;
+      font-size: 2rem;
+      font-weight: bold;
+      cursor: pointer;
+      background: #000;
+      color: #fff;
+      margin-bottom: 18px;
+      touch-action: manipulation;
+    }
+
+    #logButton:active {
+      transform: scale(0.99);
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .controls button {
+      flex: 1;
+      border: 1px solid #bbb;
+      border-radius: 10px;
+      padding: 12px;
+      background: #fafafa;
+      font-size: 1rem;
+      cursor: pointer;
+    }
+
+    .summary {
+      text-align: center;
+      margin-bottom: 12px;
+      color: #444;
+    }
+
+    #logList {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    #logList li {
+      display: grid;
+      grid-template-columns: 44px 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 10px;
+      border-bottom: 1px solid #e5e5e5;
+    }
+
+    .dot {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid #777;
+      justify-self: center;
+    }
+
+    .black-dot {
+      background: #000;
+    }
+
+    .white-dot {
+      background: #fff;
+    }
+
+    .empty {
+      text-align: center;
+      color: #777;
+      padding: 20px 0;
+    }
+
+    @media (max-width: 420px) {
+      .app {
+        margin: 12px auto;
+        padding: 18px;
+      }
+
+      #logList li {
+        grid-template-columns: 36px 1fr;
+      }
+
+      .entry-time {
+        grid-column: 2;
+        color: #555;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <h1>Black / White Logger</h1>
+
+    <button id="logButton" type="button">Log BLACK</button>
+
+    <div class="controls">
+      <button id="undoButton" type="button">Undo Last</button>
+      <button id="clearButton" type="button">Clear All</button>
+    </div>
+
+    <div class="summary" id="summary">0 entries</div>
+    <ul id="logList"></ul>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "blackWhiteTimeLog";
+    let entries = loadEntries();
+
+    const logButton = document.getElementById("logButton");
+    const undoButton = document.getElementById("undoButton");
+    const clearButton = document.getElementById("clearButton");
+    const logList = document.getElementById("logList");
+    const summary = document.getElementById("summary");
+
+    function loadEntries() {
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        return saved ? JSON.parse(saved) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveEntries() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+    }
+
+    function nextColor() {
+      return entries.length % 2 === 0 ? "Black" : "White";
+    }
+
+    function formatTime(isoString) {
+      return new Date(isoString).toLocaleString([], {
+        month: "numeric",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+        second: "2-digit"
+      });
+    }
+
+    function render() {
+      const next = nextColor();
+      logButton.textContent = `Log ${next.toUpperCase()}`;
+      logButton.style.background = next === "Black" ? "#000" : "#fff";
+      logButton.style.color = next === "Black" ? "#fff" : "#000";
+      logButton.style.border = next === "White" ? "2px solid #000" : "none";
+
+      summary.textContent = `${entries.length} ${entries.length === 1 ? "entry" : "entries"}`;
+      logList.innerHTML = "";
+
+      if (entries.length === 0) {
+        const empty = document.createElement("li");
+        empty.className = "empty";
+        empty.textContent = "No entries yet.";
+        logList.appendChild(empty);
+        return;
+      }
+
+      [...entries].reverse().forEach((entry) => {
+        const item = document.createElement("li");
+
+        const dot = document.createElement("span");
+        dot.className = `dot ${entry.color.toLowerCase()}-dot`;
+
+        const color = document.createElement("strong");
+        color.textContent = entry.color;
+
+        const time = document.createElement("span");
+        time.className = "entry-time";
+        time.textContent = formatTime(entry.time);
+
+        item.append(dot, color, time);
+        logList.appendChild(item);
+      });
+    }
+
+    logButton.addEventListener("click", () => {
+      entries.push({
+        color: nextColor(),
+        time: new Date().toISOString()
+      });
+      saveEntries();
+      render();
+    });
+
+    undoButton.addEventListener("click", () => {
+      if (entries.length === 0) return;
+      entries.pop();
+      saveEntries();
+      render();
+    });
+
+    clearButton.addEventListener("click", () => {
+      if (entries.length === 0) return;
+      if (confirm("Clear all logged entries?")) {
+        entries = [];
+        saveEntries();
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>
